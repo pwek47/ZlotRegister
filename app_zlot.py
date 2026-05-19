@@ -1,20 +1,19 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client
-from datetime import datetime
 
 # -----------------------------
 # SUPABASE CONFIG
 # -----------------------------
-SUPABASE_URL = 'https://ogrrodyxbwhsepgaancv.supabase.co'
-SUPABASE_KEY = 'sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z'
+SUPABASE_URL = "https://ogrrodyxbwhsepgaancv.supabase.co"
+SUPABASE_KEY = "sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
 
 # -----------------------------
-# KONFIG
+# KONFIG TABEL
 # -----------------------------
 SWIETUCH_GODZINY = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
 SWIETUCH_SLOTY = [f"Slot {i}" for i in range(1, 10)]
@@ -23,28 +22,26 @@ PROG_GODZINY = ["16:00","17:00","18:00","19:00"]
 PROG_SLOTY = ["Slot A", "Slot B"]
 
 # -----------------------------
-# DB
+# FUNKCJE DB
 # -----------------------------
 def pobierz(event):
-    return supabase.table("zlot_slots") \
-        .select("*") \
-        .eq("event", event) \
-        .execute().data
-
-def usun_event(event):
-    supabase.table("zlot_slots").delete().eq("event", event).execute()
+    res = supabase.table("zlot_slots").select("*").eq("event", event).execute()
+    return res.data
 
 def zapisz(event, hour, slot, patrol):
     return supabase.table("zlot_slots").insert({
         "event": event,
         "hour": hour,
         "slot": slot,
-        "patrol": patrol,
-        "updated_at": datetime.utcnow().isoformat()
+        "patrol": patrol
     }).execute()
 
+def czy_patrol_istnieje(patrol):
+    res = supabase.table("zlot_slots").select("*").eq("patrol", patrol).execute()
+    return len(res.data) > 0
+
 # -----------------------------
-# TABLE BUILD
+# GENEROWANIE TABELI
 # -----------------------------
 def build_table(event, hours, slots):
     data = pobierz(event)
@@ -52,67 +49,13 @@ def build_table(event, hours, slots):
     df = pd.DataFrame("", index=hours, columns=slots)
 
     for row in data:
-        h, s, p = row["hour"], row["slot"], row["patrol"]
+        h = row["hour"]
+        s = row["slot"]
+        p = row["patrol"]
         if h in df.index and s in df.columns:
             df.loc[h, s] = p
 
     return df
-
-# -----------------------------
-# PANEL
-# -----------------------------
-def panel(event, hours, slots):
-
-    st.subheader(f"📌 {event}")
-
-    # 🔥 zawsze świeże dane
-    df = build_table(event, hours, slots)
-
-    edited = st.data_editor(
-        df,
-        use_container_width=True,
-        num_rows="fixed",
-        key=f"editor_{event}"
-    )
-
-    col1, col2 = st.columns([1,3])
-
-    with col1:
-        save = st.button("💾 Zapisz zmiany", key=f"save_{event}")
-
-    if save:
-
-        flat = edited.values.flatten()
-
-        # ❗ walidacja duplikatów
-        seen = set()
-        for v in flat:
-            if v == "":
-                continue
-            if v in seen:
-                st.error(f"❌ Patrol {v} występuje więcej niż raz!")
-                return
-            seen.add(v)
-
-        try:
-            # 🔥 reset eventu
-            usun_event(event)
-
-            # 🔥 zapis
-            for r in hours:
-                for c in slots:
-                    val = edited.loc[r, c]
-                    if val != "":
-                        zapisz(event, r, c, val)
-
-            st.success(f"✔ Zapisano zmiany ({datetime.now().strftime('%H:%M:%S')})")
-
-            # 🔥 ważne: natychmiastowy refresh
-            st.rerun()
-
-        except Exception as e:
-            st.error("❌ Błąd zapisu do bazy")
-            st.exception(e)
 
 # -----------------------------
 # UI
@@ -124,6 +67,47 @@ zakladka = st.radio(
     ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
+# -----------------------------
+# LOGIKA ZAPISU
+# -----------------------------
+def panel(event, hours, slots):
+
+    df = build_table(event, hours, slots)
+
+    st.subheader(event)
+    st.dataframe(df, use_container_width=True)
+
+    st.info("👉 Kliknij pole i wpisz numer patrolu")
+
+    # wybór komórki (klik-UX)
+    komorki = [(h, s) for h in hours for s in slots]
+
+    wybor = st.selectbox("Wybierz pole", komorki, format_func=lambda x: f"{x[0]} - {x[1]}")
+    hour, slot = wybor
+
+    st.write(f"Wybrano: {hour} / {slot}")
+
+    patrol = st.text_input("Numer patrolu")
+
+    if st.button("Zapisz"):
+        if patrol == "":
+            st.error("Podaj numer patrolu")
+            return
+
+        if czy_patrol_istnieje(patrol):
+            st.error("Ten patrol już istnieje w systemie!")
+            return
+
+        try:
+            zapisz(event, hour, slot, patrol)
+            st.success("Zapisano!")
+            st.rerun()
+        except Exception as e:
+            st.error("Slot zajęty lub błąd zapisu")
+
+# -----------------------------
+# EVENTS
+# -----------------------------
 if zakladka == "Świętuchobranie":
     panel("swietuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
 else:
