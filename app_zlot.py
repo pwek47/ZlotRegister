@@ -4,19 +4,6 @@ import pandas as pd
 st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
 
 # -----------------------------
-# SUCCESS MESSAGE STATE
-# -----------------------------
-if "msg" not in st.session_state:
-    st.session_state.msg = ""
-
-# -----------------------------
-# POKAZANIE WIADOMOŚCI
-# -----------------------------
-if st.session_state.msg:
-    st.success(st.session_state.msg)
-    st.session_state.msg = ""
-
-# -----------------------------
 # DANE
 # -----------------------------
 if "tabela_swietuchobranie" not in st.session_state:
@@ -31,10 +18,21 @@ if "tabela_programowanie" not in st.session_state:
         "", index=godziny, columns=["Slot A", "Slot B"]
     )
 
+# -----------------------------
+# SPRAWDZENIE DUPLIKATÓW
+# -----------------------------
+def patrol_istnieje(df, patrol):
+    return (df == patrol).any().any()
+
+# -----------------------------
+# FUNKCJA EDYTORA
+# -----------------------------
 def tabela_edytowalna(klucz, tytul):
     st.subheader(tytul)
 
     df = st.session_state[klucz]
+
+    st.info("👉 Kliknij w komórkę i wpisz numer Patrolu")
 
     edited = st.data_editor(
         df,
@@ -45,21 +43,17 @@ def tabela_edytowalna(klucz, tytul):
 
     if st.button("Zapisz zmiany", key=f"save_{klucz}"):
 
+        # sprawdzenie duplikatów patrolu
         flat = edited.values.flatten()
-
-        seen = set()
-        for val in flat:
-            if val == "":
-                continue
-            if val in seen:
-                st.session_state.msg = f"❌ Patrol '{val}' jest już zapisany!"
-                st.rerun()
+        for val in set(flat):
+            if val != "" and list(flat).count(val) > 1:
+                st.error("❌ Twój Patrol został już zapisany na te zajęcia!")
                 return
-            seen.add(val)
 
+        # aktualizacja danych (bez crashy Streamlit)
         st.session_state[klucz].iloc[:, :] = edited.values
 
-        st.session_state.msg = "✔ Zapisano poprawnie!"
+        st.success("✔ Zapisano!")
         st.rerun()
 
 # -----------------------------
@@ -72,7 +66,14 @@ zakladka = st.radio(
     ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
+# -----------------------------
+# ŚWIĘTUCHOBRANIE
+# -----------------------------
 if zakladka == "Świętuchobranie":
     tabela_edytowalna("tabela_swietuchobranie", "Świętuchobranie")
+
+# -----------------------------
+# WARSZTATY
+# -----------------------------
 else:
     tabela_edytowalna("tabela_programowanie", "Warsztaty z programowania")
