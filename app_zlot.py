@@ -5,16 +5,15 @@ from supabase import create_client
 # -----------------------------
 # SUPABASE CONFIG
 # -----------------------------
-SUPABASE_URL = "https://ogrrodyxbwhsepgaancv.supabase.co"
-SUPABASE_KEY = "sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z"
+SUPABASE_URL='https://ogrrodyxbwhsepgaancv.supabase.co'
+SUPABASE_KEY='sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z'
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
-st.info("👉 Kliknij w komórkę i wpisz numer Patrolu")
 
 # -----------------------------
-# KONFIG TABEL
+# KONFIG
 # -----------------------------
 SWIETUCH_GODZINY = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
 SWIETUCH_SLOTY = [f"Slot {i}" for i in range(1, 10)]
@@ -23,7 +22,7 @@ PROG_GODZINY = ["16:00","17:00","18:00","19:00"]
 PROG_SLOTY = ["Slot A", "Slot B"]
 
 # -----------------------------
-# DB FUNKCJE
+# DB
 # -----------------------------
 def pobierz(event):
     return supabase.table("zlot_slots").select("*").eq("event", event).execute().data
@@ -39,9 +38,6 @@ def zapisz(event, hour, slot, patrol):
 def czy_patrol_istnieje(patrol):
     res = supabase.table("zlot_slots").select("*").eq("patrol", patrol).execute()
     return len(res.data) > 0
-
-def wyczysc_event(event):
-    supabase.table("zlot_slots").delete().eq("event", event).execute()
 
 # -----------------------------
 # BUDOWA TABELI
@@ -69,49 +65,48 @@ def panel(event, hours, slots):
 
     df = build_table(event, hours, slots)
 
+    # 🔥 USER EDYTUJE BEZPOŚREDNIO TABELĘ
     edited = st.data_editor(
         df,
         use_container_width=True,
         num_rows="fixed"
     )
 
-    st.info("👉 Kliknij komórkę i wpisz numer Patrolu")
+    st.info("👉 Kliknij komórkę i wpisz numer patrolu")
 
     if st.button("Zapisz zmiany"):
 
         flat = edited.values.flatten()
 
-        # -------------------------
-        # WALIDACJA DUPLIKATÓW
-        # -------------------------
+        # ❗ patrol tylko raz
         seen = set()
         for val in flat:
             if val == "":
                 continue
             if val in seen:
-                st.error("❌ Każdy Patrol może zapisać się na dane zajęcia tylko raz!")
+                st.error(f"❌ Patrol {val} występuje więcej niż raz!")
                 return
             seen.add(val)
 
         # -------------------------
-        # ZAPIS (SAFE SYNC)
+        # ZAPIS DO SUPABASE
         # -------------------------
         try:
-            # czyścimy event
-            wyczysc_event(event)
+            # czyścimy event i zapisujemy od nowa (prosty sync)
+            supabase.table("zlot_slots").delete().eq("event", event).execute()
 
-            # zapisujemy od nowa
             for r in hours:
                 for c in slots:
                     val = edited.loc[r, c]
                     if val != "":
                         zapisz(event, r, c, val)
 
-            st.success("✔ Zapisano Patrol!")
+            st.success("✔ Zapisano zmiany!")
             st.rerun()
 
-        except Exception:
-            st.error("❌ Nie udało się zapisać. Spróbuj ponownie.")
+        except Exception as e:
+            st.error("Błąd zapisu")
+            st.exception(e)
 
 # -----------------------------
 # UI
@@ -127,4 +122,3 @@ if zakladka == "Świętuchobranie":
     panel("swietuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
 else:
     panel("warsztaty", PROG_GODZINY, PROG_SLOTY)
-
