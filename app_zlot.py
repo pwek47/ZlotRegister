@@ -19,20 +19,20 @@ if "tabela_programowanie" not in st.session_state:
     )
 
 # -----------------------------
-# SPRAWDZENIE DUPLIKATÓW
+# FUNKCJA: czy patrol już istnieje
 # -----------------------------
 def patrol_istnieje(df, patrol):
-    return (df == patrol).any().any()
+    return (df.values == patrol).any()
 
 # -----------------------------
-# FUNKCJA EDYTORA
+# EDYTOR TABELI
 # -----------------------------
 def tabela_edytowalna(klucz, tytul):
     st.subheader(tytul)
 
     df = st.session_state[klucz]
 
-    st.info("👉 Kliknij w komórkę i wpisz numer patrolu")
+    st.info("👉 Kliknij w komórkę i wpisz numer patrolu (tylko raz w całej tabeli)")
 
     edited = st.data_editor(
         df,
@@ -43,17 +43,26 @@ def tabela_edytowalna(klucz, tytul):
 
     if st.button("Zapisz zmiany", key=f"save_{klucz}"):
 
-        # sprawdzenie duplikatów patrolu
         flat = edited.values.flatten()
-        for val in set(flat):
-            if val != "" and list(flat).count(val) > 1:
-                st.error("❌ Jeden patrol może być tylko raz w tabeli!")
-                return
 
-        # aktualizacja danych (bez crashy Streamlit)
+        # -------------------------
+        # 🔥 SPRAWDZENIE DUPLIKATÓW
+        # -------------------------
+        seen = set()
+        for val in flat:
+            if val == "":
+                continue
+            if val in seen:
+                st.error(f"❌ Patrol '{val}' występuje więcej niż raz!")
+                return
+            seen.add(val)
+
+        # -------------------------
+        # ZAPIS
+        # -------------------------
         st.session_state[klucz].iloc[:, :] = edited.values
 
-        st.success("✔ Zapisano!")
+        st.success("✔ Zapisano poprawnie!")
         st.rerun()
 
 # -----------------------------
@@ -66,14 +75,7 @@ zakladka = st.radio(
     ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
-# -----------------------------
-# ŚWIĘTUCHOBRANIE
-# -----------------------------
 if zakladka == "Świętuchobranie":
     tabela_edytowalna("tabela_swietuchobranie", "Świętuchobranie")
-
-# -----------------------------
-# WARSZTATY
-# -----------------------------
 else:
     tabela_edytowalna("tabela_programowanie", "Warsztaty z programowania")
