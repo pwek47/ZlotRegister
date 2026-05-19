@@ -18,9 +18,47 @@ if "tabela_programowanie" not in st.session_state:
         "", index=godziny, columns=["Slot A", "Slot B"]
     )
 
+# -----------------------------
+# SPRAWDZENIE DUPLIKATÓW
+# -----------------------------
 def patrol_istnieje(df, patrol):
     return (df == patrol).any().any()
 
+# -----------------------------
+# FUNKCJA EDYTORA
+# -----------------------------
+def tabela_edytowalna(klucz, tytul):
+    st.subheader(tytul)
+
+    df = st.session_state[klucz]
+
+    st.info("👉 Kliknij w komórkę i wpisz numer patrolu")
+
+    edited = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="fixed",
+        key=f"editor_{klucz}"
+    )
+
+    if st.button("Zapisz zmiany", key=f"save_{klucz}"):
+
+        # sprawdzenie duplikatów patrolu
+        flat = edited.values.flatten()
+        for val in set(flat):
+            if val != "" and list(flat).count(val) > 1:
+                st.error("❌ Jeden patrol może być tylko raz w tabeli!")
+                return
+
+        # aktualizacja danych (bez crashy Streamlit)
+        st.session_state[klucz].iloc[:, :] = edited.values
+
+        st.success("✔ Zapisano!")
+        st.rerun()
+
+# -----------------------------
+# UI
+# -----------------------------
 st.title("📋 Zgłoszenia Zlotowe 68 HRŚ")
 
 zakladka = st.radio(
@@ -28,40 +66,14 @@ zakladka = st.radio(
     ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
-# =============================
-# FUNKCJA EDYCJI
-# =============================
-def tabela_edytowalna(df, klucz):
-    st.info("👉 Kliknij w komórkę i wpisz numer patrolu (tylko jedno pole)")
-
-    edited = st.data_editor(
-        df,
-        key=klucz,
-        use_container_width=True,
-        num_rows="fixed"
-    )
-
-    if st.button("Zapisz zmiany", key=f"save_{klucz}"):
-        # sprawdzanie duplikatów patrolu
-        for val in edited.values.flatten():
-            if val != "" and list(edited.values.flatten()).count(val) > 1:
-                st.error("Jeden patrol może być tylko raz!")
-                return
-
-        st.session_state[klucz] = edited
-        st.success("Zapisano!")
-        st.rerun()
-
-# =============================
+# -----------------------------
 # ŚWIĘTUCHOBRANIE
-# =============================
+# -----------------------------
 if zakladka == "Świętuchobranie":
-    st.subheader("Świętuchobranie")
-    tabela_edytowalna(st.session_state.tabela_swietuchobranie, "swietuch")
+    tabela_edytowalna("tabela_swietuchobranie", "Świętuchobranie")
 
-# =============================
+# -----------------------------
 # WARSZTATY
-# =============================
+# -----------------------------
 else:
-    st.subheader("Warsztaty z programowania")
-    tabela_edytowalna(st.session_state.tabela_programowanie, "prog")
+    tabela_edytowalna("tabela_programowanie", "Warsztaty z programowania")
