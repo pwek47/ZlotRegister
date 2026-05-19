@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Zlot - Zgłoszenia", layout="wide")
+st.set_page_config(page_title="Zgłoszenia na zajęcia Zlotowe 68 HRŚ", layout="wide")
 
 # -----------------------------
-# DANE TABLIC
+# DANE
 # -----------------------------
 if "tabela_swietuchobranie" not in st.session_state:
     godziny = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
@@ -18,16 +18,10 @@ if "tabela_programowanie" not in st.session_state:
         "", index=godziny, columns=["Slot A", "Slot B"]
     )
 
-# -----------------------------
-# FUNKCJA SPRAWDZAJĄCA CZY PATROL JUŻ JEST
-# -----------------------------
 def patrol_istnieje(df, patrol):
     return (df == patrol).any().any()
 
-# -----------------------------
-# UI
-# -----------------------------
-st.title("📋 Zgłoszenia na Zlot")
+st.title("📋 Zgłoszenia na zajęcia Zlotowe 68 HRŚ")
 
 zakladka = st.radio(
     "Wybierz wydarzenie",
@@ -40,19 +34,31 @@ zakladka = st.radio(
 if zakladka == "Świętuchobranie":
     st.subheader("Świętuchobranie")
 
-    st.dataframe(st.session_state.tabela_swietuchobranie, use_container_width=True)
+    df = st.session_state.tabela_swietuchobranie
+    st.dataframe(df, use_container_width=True)
 
     st.subheader("Zgłoszenie patrolu")
 
-    godzina = st.selectbox("Godzina", st.session_state.tabela_swietuchobranie.index)
-    slot = st.selectbox("Slot", st.session_state.tabela_swietuchobranie.columns)
+    # --- wybór tylko KOMÓRKI ---
+    komorki = [(t, s) for t in df.index for s in df.columns]
+
+    wybor = st.selectbox(
+        "Wybierz dostępny slot",
+        komorki,
+        format_func=lambda x: f"{x[0]} - {x[1]}"
+    )
+
+    godzina, slot = wybor
+
+    st.info(f"Wybrano: godzina **{godzina}**, slot **{slot}**")
+
     patrol = st.text_input("Nazwa patrolu")
 
     if st.button("Zapisz się"):
         df = st.session_state.tabela_swietuchobranie
 
         if patrol_istnieje(df, patrol):
-            st.error("Ten patrol już jest zapisany w tej tabeli!")
+            st.error("Ten patrol już jest zapisany!")
         elif df.loc[godzina, slot] != "":
             st.error("Ten slot jest już zajęty!")
         else:
@@ -61,24 +67,35 @@ if zakladka == "Świętuchobranie":
             st.rerun()
 
 # =============================
-# WARSZTATY Z PROGRAMOWANIA
+# WARSZTATY
 # =============================
-elif zakladka == "Warsztaty z programowania":
+else:
     st.subheader("Warsztaty z programowania")
 
-    st.dataframe(st.session_state.tabela_programowanie, use_container_width=True)
+    df = st.session_state.tabela_programowanie
+    st.dataframe(df, use_container_width=True)
 
     st.subheader("Zgłoszenie patrolu")
 
-    godzina = st.selectbox("Godzina", st.session_state.tabela_programowanie.index)
-    slot = st.selectbox("Slot", st.session_state.tabela_programowanie.columns)
+    komorki = [(t, s) for t in df.index for s in df.columns]
+
+    wybor = st.selectbox(
+        "Wybierz dostępny slot",
+        komorki,
+        format_func=lambda x: f"{x[0]} - {x[1]}"
+    )
+
+    godzina, slot = wybor
+
+    st.info(f"Wybrano: godzina **{godzina}**, slot **{slot}**")
+
     patrol = st.text_input("Nazwa patrolu")
 
     if st.button("Zapisz się"):
         df = st.session_state.tabela_programowanie
 
         if patrol_istnieje(df, patrol):
-            st.error("Ten patrol już jest zapisany w tej tabeli!")
+            st.error("Ten patrol już jest zapisany!")
         elif df.loc[godzina, slot] != "":
             st.error("Ten slot jest już zajęty!")
         else:
