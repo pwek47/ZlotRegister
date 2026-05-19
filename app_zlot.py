@@ -32,7 +32,7 @@ def tabela_edytowalna(klucz, tytul):
 
     df = st.session_state[klucz]
 
-    st.info("👉 Kliknij w komórkę i wpisz numer patrolu (tylko raz w całej tabeli)")
+    st.info("👉 Kliknij w komórkę i wpisz numer patrolu")
 
     edited = st.data_editor(
         df,
@@ -41,7 +41,7 @@ def tabela_edytowalna(klucz, tytul):
         key=f"editor_{klucz}"
     )
 
-    if st.button("Zapisz zmiany", key=f"save_{klucz}"):
+    if st.button("Zapisz się!", key=f"save_{klucz}"):
 
         flat = edited.values.flatten()
 
@@ -53,7 +53,7 @@ def tabela_edytowalna(klucz, tytul):
             if val == "":
                 continue
             if val in seen:
-                st.error(f"❌ Patrol '{val}' występuje więcej niż raz!")
+                st.error(f"❌ Patrol '{val}' został już zapisany!")
                 return
             seen.add(val)
 
