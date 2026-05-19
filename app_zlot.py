@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Zgłoszenia na zajęcia Zlotowe 68 HRŚ", layout="wide")
+st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
 
 # -----------------------------
 # DANE
@@ -21,7 +21,7 @@ if "tabela_programowanie" not in st.session_state:
 def patrol_istnieje(df, patrol):
     return (df == patrol).any().any()
 
-st.title("📋 Zgłoszenia na zajęcia Zlotowe 68 HRŚ")
+st.title("📋 Zgłoszenia Zlotowe 68 HRŚ")
 
 zakladka = st.radio(
     "Wybierz wydarzenie",
@@ -29,76 +29,39 @@ zakladka = st.radio(
 )
 
 # =============================
+# FUNKCJA EDYCJI
+# =============================
+def tabela_edytowalna(df, klucz):
+    st.info("👉 Kliknij w komórkę i wpisz numer patrolu (tylko jedno pole)")
+
+    edited = st.data_editor(
+        df,
+        key=klucz,
+        use_container_width=True,
+        num_rows="fixed"
+    )
+
+    if st.button("Zapisz zmiany", key=f"save_{klucz}"):
+        # sprawdzanie duplikatów patrolu
+        for val in edited.values.flatten():
+            if val != "" and list(edited.values.flatten()).count(val) > 1:
+                st.error("Jeden patrol może być tylko raz!")
+                return
+
+        st.session_state[klucz] = edited
+        st.success("Zapisano!")
+        st.rerun()
+
+# =============================
 # ŚWIĘTUCHOBRANIE
 # =============================
 if zakladka == "Świętuchobranie":
     st.subheader("Świętuchobranie")
-
-    df = st.session_state.tabela_swietuchobranie
-    st.dataframe(df, use_container_width=True)
-
-    st.subheader("Zgłoszenie patrolu")
-
-    # --- wybór tylko KOMÓRKI ---
-    komorki = [(t, s) for t in df.index for s in df.columns]
-
-    wybor = st.selectbox(
-        "Wybierz dostępny slot",
-        komorki,
-        format_func=lambda x: f"{x[0]} - {x[1]}"
-    )
-
-    godzina, slot = wybor
-
-    st.info(f"Wybrano: godzina **{godzina}**, slot **{slot}**")
-
-    patrol = st.text_input("Nazwa patrolu")
-
-    if st.button("Zapisz się"):
-        df = st.session_state.tabela_swietuchobranie
-
-        if patrol_istnieje(df, patrol):
-            st.error("Ten patrol już jest zapisany!")
-        elif df.loc[godzina, slot] != "":
-            st.error("Ten slot jest już zajęty!")
-        else:
-            st.session_state.tabela_swietuchobranie.loc[godzina, slot] = patrol
-            st.success("Zapisano patrol!")
-            st.rerun()
+    tabela_edytowalna(st.session_state.tabela_swietuchobranie, "swietuch")
 
 # =============================
 # WARSZTATY
 # =============================
 else:
     st.subheader("Warsztaty z programowania")
-
-    df = st.session_state.tabela_programowanie
-    st.dataframe(df, use_container_width=True)
-
-    st.subheader("Zgłoszenie patrolu")
-
-    komorki = [(t, s) for t in df.index for s in df.columns]
-
-    wybor = st.selectbox(
-        "Wybierz dostępny slot",
-        komorki,
-        format_func=lambda x: f"{x[0]} - {x[1]}"
-    )
-
-    godzina, slot = wybor
-
-    st.info(f"Wybrano: godzina **{godzina}**, slot **{slot}**")
-
-    patrol = st.text_input("Nazwa patrolu")
-
-    if st.button("Zapisz się"):
-        df = st.session_state.tabela_programowanie
-
-        if patrol_istnieje(df, patrol):
-            st.error("Ten patrol już jest zapisany!")
-        elif df.loc[godzina, slot] != "":
-            st.error("Ten slot jest już zajęty!")
-        else:
-            st.session_state.tabela_programowanie.loc[godzina, slot] = patrol
-            st.success("Zapisano patrol!")
-            st.rerun()
+    tabela_edytowalna(st.session_state.tabela_programowanie, "prog")
