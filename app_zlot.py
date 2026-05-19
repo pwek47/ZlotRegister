@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client
+from datetime import datetime
 
 # -----------------------------
 # SUPABASE CONFIG
 # -----------------------------
-SUPABASE_URL='https://ogrrodyxbwhsepgaancv.supabase.co'
-SUPABASE_KEY='sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z'
+SUPABASE_URL = 'https://ogrrodyxbwhsepgaancv.supabase.co'
+SUPABASE_KEY = 'sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z'
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -25,22 +26,25 @@ PROG_SLOTY = ["Slot A", "Slot B"]
 # DB
 # -----------------------------
 def pobierz(event):
-    return supabase.table("zlot_slots").select("*").eq("event", event).execute().data
+    return supabase.table("zlot_slots") \
+        .select("*") \
+        .eq("event", event) \
+        .execute().data
+
+def usun_event(event):
+    supabase.table("zlot_slots").delete().eq("event", event).execute()
 
 def zapisz(event, hour, slot, patrol):
     return supabase.table("zlot_slots").insert({
         "event": event,
         "hour": hour,
         "slot": slot,
-        "patrol": patrol
+        "patrol": patrol,
+        "updated_at": datetime.utcnow().isoformat()
     }).execute()
 
-def czy_patrol_istnieje(patrol):
-    res = supabase.table("zlot_slots").select("*").eq("patrol", patrol).execute()
-    return len(res.data) > 0
-
 # -----------------------------
-# BUDOWA TABELI
+# TABLE BUILD
 # -----------------------------
 def build_table(event, hours, slots):
     data = pobierz(event)
@@ -48,9 +52,7 @@ def build_table(event, hours, slots):
     df = pd.DataFrame("", index=hours, columns=slots)
 
     for row in data:
-        h = row["hour"]
-        s = row["slot"]
-        p = row["patrol"]
+        h, s, p = row["hour"], row["slot"], row["patrol"]
         if h in df.index and s in df.columns:
             df.loc[h, s] = p
 
@@ -61,51 +63,55 @@ def build_table(event, hours, slots):
 # -----------------------------
 def panel(event, hours, slots):
 
-    st.subheader(event)
+    st.subheader(f"📌 {event}")
 
+    # 🔥 zawsze świeże dane
     df = build_table(event, hours, slots)
 
-    # 🔥 USER EDYTUJE BEZPOŚREDNIO TABELĘ
     edited = st.data_editor(
         df,
         use_container_width=True,
-        num_rows="fixed"
+        num_rows="fixed",
+        key=f"editor_{event}"
     )
 
-    st.info("👉 Kliknij komórkę i wpisz numer patrolu")
+    col1, col2 = st.columns([1,3])
 
-    if st.button("Zapisz zmiany"):
+    with col1:
+        save = st.button("💾 Zapisz zmiany", key=f"save_{event}")
+
+    if save:
 
         flat = edited.values.flatten()
 
-        # ❗ patrol tylko raz
+        # ❗ walidacja duplikatów
         seen = set()
-        for val in flat:
-            if val == "":
+        for v in flat:
+            if v == "":
                 continue
-            if val in seen:
-                st.error(f"❌ Patrol {val} występuje więcej niż raz!")
+            if v in seen:
+                st.error(f"❌ Patrol {v} występuje więcej niż raz!")
                 return
-            seen.add(val)
+            seen.add(v)
 
-        # -------------------------
-        # ZAPIS DO SUPABASE
-        # -------------------------
         try:
-            # czyścimy event i zapisujemy od nowa (prosty sync)
-            supabase.table("zlot_slots").delete().eq("event", event).execute()
+            # 🔥 reset eventu
+            usun_event(event)
 
+            # 🔥 zapis
             for r in hours:
                 for c in slots:
                     val = edited.loc[r, c]
                     if val != "":
                         zapisz(event, r, c, val)
 
-            st.success("✔ Zapisano zmiany!")
+            st.success(f"✔ Zapisano zmiany ({datetime.now().strftime('%H:%M:%S')})")
+
+            # 🔥 ważne: natychmiastowy refresh
             st.rerun()
 
         except Exception as e:
-            st.error("Błąd zapisu")
+            st.error("❌ Błąd zapisu do bazy")
             st.exception(e)
 
 # -----------------------------
