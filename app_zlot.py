@@ -1,110 +1,87 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="System Zlotu", layout="wide")
+st.set_page_config(page_title="Zlot - Zgłoszenia", layout="wide")
 
 # -----------------------------
-# SESSION STATE STORAGE
+# DANE TABLIC
 # -----------------------------
-if "uczestnicy" not in st.session_state:
-    st.session_state.uczestnicy = []
-
-if "tabela1" not in st.session_state:
-    czasy = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
-    st.session_state.tabela1 = pd.DataFrame(
-        "", index=czasy, columns=[f"Slot {i}" for i in range(1, 10)]
+if "tabela_swietuchobranie" not in st.session_state:
+    godziny = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
+    st.session_state.tabela_swietuchobranie = pd.DataFrame(
+        "", index=godziny, columns=[f"Slot {i}" for i in range(1, 10)]
     )
 
-if "tabela2" not in st.session_state:
+if "tabela_programowanie" not in st.session_state:
     godziny = ["16:00","17:00","18:00","19:00"]
-    st.session_state.tabela2 = pd.DataFrame(
+    st.session_state.tabela_programowanie = pd.DataFrame(
         "", index=godziny, columns=["Slot A", "Slot B"]
     )
 
 # -----------------------------
-# MENU
+# FUNKCJA SPRAWDZAJĄCA CZY PATROL JUŻ JEST
 # -----------------------------
-strona = st.sidebar.radio(
-    "Menu",
-    ["Rejestracja", "Uczestnicy", "Tabela 1", "Tabela 2"]
+def patrol_istnieje(df, patrol):
+    return (df == patrol).any().any()
+
+# -----------------------------
+# UI
+# -----------------------------
+st.title("📋 Zgłoszenia na Zlot")
+
+zakladka = st.radio(
+    "Wybierz wydarzenie",
+    ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
-# -----------------------------
-# REJESTRACJA
-# -----------------------------
-if strona == "Rejestracja":
-    st.title("Rejestracja Zlotu")
+# =============================
+# ŚWIĘTUCHOBRANIE
+# =============================
+if zakladka == "Świętuchobranie":
+    st.subheader("Świętuchobranie")
 
-    with st.form("formularz"):
-        imie = st.text_input("Imię i nazwisko")
-        patrol = st.text_input("Nazwa patrolu")
-        platnosc = st.selectbox("Status płatności", ["Nieopłacone", "Opłacone", "Częściowo"])
-        wymagania = st.text_area("Specjalne wymagania")
+    st.dataframe(st.session_state.tabela_swietuchobranie, use_container_width=True)
 
-        wyslane = st.form_submit_button("Dodaj uczestnika")
+    st.subheader("Zgłoszenie patrolu")
 
-        if wyslane:
-            st.session_state.uczestnicy.append({
-                "Imię": imie,
-                "Patrol": patrol,
-                "Płatność": platnosc,
-                "Wymagania": wymagania
-            })
-            st.success("Dodano uczestnika!")
-
-# -----------------------------
-# UCZESTNICY
-# -----------------------------
-elif strona == "Uczestnicy":
-    st.title("Lista uczestników")
-
-    df = pd.DataFrame(st.session_state.uczestnicy)
-
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.info("Brak uczestników.")
-
-# -----------------------------
-# TABELA 1
-# -----------------------------
-elif strona == "Tabela 1":
-    st.title("Tabela 1 (9 slotów × 7 godzin)")
-
-    st.dataframe(st.session_state.tabela1, use_container_width=True)
-
-    st.subheader("Przypisz patrol do slotu")
-
-    czas = st.selectbox("Godzina", st.session_state.tabela1.index)
-    slot = st.selectbox("Slot", st.session_state.tabela1.columns)
+    godzina = st.selectbox("Godzina", st.session_state.tabela_swietuchobranie.index)
+    slot = st.selectbox("Slot", st.session_state.tabela_swietuchobranie.columns)
     patrol = st.text_input("Nazwa patrolu")
 
-    if st.button("Przypisz"):
-        if st.session_state.tabela1.loc[czas, slot] == "":
-            st.session_state.tabela1.loc[czas, slot] = patrol
-            st.success("Przypisano patrol!")
-            st.rerun()
-        else:
+    if st.button("Zapisz się"):
+        df = st.session_state.tabela_swietuchobranie
+
+        if patrol_istnieje(df, patrol):
+            st.error("Ten patrol już jest zapisany w tej tabeli!")
+        elif df.loc[godzina, slot] != "":
             st.error("Ten slot jest już zajęty!")
+        else:
+            st.session_state.tabela_swietuchobranie.loc[godzina, slot] = patrol
+            st.success("Zapisano patrol!")
+            st.rerun()
 
-# -----------------------------
-# TABELA 2
-# -----------------------------
-elif strona == "Tabela 2":
-    st.title("Tabela 2 (2 sloty na godzinę)")
+# =============================
+# WARSZTATY Z PROGRAMOWANIA
+# =============================
+elif zakladka == "Warsztaty z programowania":
+    st.subheader("Warsztaty z programowania")
 
-    st.dataframe(st.session_state.tabela2, use_container_width=True)
+    st.dataframe(st.session_state.tabela_programowanie, use_container_width=True)
 
-    st.subheader("Przypisz patrol do slotu")
+    st.subheader("Zgłoszenie patrolu")
 
-    godzina = st.selectbox("Godzina", st.session_state.tabela2.index)
-    slot = st.selectbox("Slot", st.session_state.tabela2.columns)
+    godzina = st.selectbox("Godzina", st.session_state.tabela_programowanie.index)
+    slot = st.selectbox("Slot", st.session_state.tabela_programowanie.columns)
     patrol = st.text_input("Nazwa patrolu")
 
-    if st.button("Przypisz"):
-        if st.session_state.tabela2.loc[godzina, slot] == "":
-            st.session_state.tabela2.loc[godzina, slot] = patrol
-            st.success("Przypisano patrol!")
-            st.rerun()
-        else:
+    if st.button("Zapisz się"):
+        df = st.session_state.tabela_programowanie
+
+        if patrol_istnieje(df, patrol):
+            st.error("Ten patrol już jest zapisany w tej tabeli!")
+        elif df.loc[godzina, slot] != "":
             st.error("Ten slot jest już zajęty!")
+        else:
+            st.session_state.tabela_programowanie.loc[godzina, slot] = patrol
+            st.success("Zapisano patrol!")
+            st.rerun()
