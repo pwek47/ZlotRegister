@@ -11,13 +11,10 @@ SUPABASE_KEY = "sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
-
-st.title("📋 Zgłoszenia Zlotowe 68 HRŚ")
-
-st.info("👉 Kliknij komórkę i wpisz numer Patrolu")
+st.info("👉 Kliknij w komórkę i wpisz numer Patrolu")
 
 # -----------------------------
-# KONFIG
+# KONFIG TABEL
 # -----------------------------
 SWIETUCH_GODZINY = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
 SWIETUCH_SLOTY = [f"Slot {i}" for i in range(1, 10)]
@@ -26,31 +23,28 @@ PROG_GODZINY = ["16:00","17:00","18:00","19:00"]
 PROG_SLOTY = ["Slot A", "Slot B"]
 
 # -----------------------------
-# STATE INIT
-# -----------------------------
-if "duplicate_error" not in st.session_state:
-    st.session_state.duplicate_error = None
-
-# -----------------------------
-# DB
+# DB FUNKCJE
 # -----------------------------
 def pobierz(event):
-    res = supabase.table("zlot_slots").select("*").eq("event", event).execute()
-    return res.data
+    return supabase.table("zlot_slots").select("*").eq("event", event).execute().data
 
 def zapisz(event, hour, slot, patrol):
-    return supabase.table("zlot_slots").upsert(
-        {
-            "event": event,
-            "hour": hour,
-            "slot": slot,
-            "patrol": patrol
-        },
-        on_conflict=["event", "hour", "slot"]
-    ).execute()
+    return supabase.table("zlot_slots").insert({
+        "event": event,
+        "hour": hour,
+        "slot": slot,
+        "patrol": patrol
+    }).execute()
+
+def czy_patrol_istnieje(patrol):
+    res = supabase.table("zlot_slots").select("*").eq("patrol", patrol).execute()
+    return len(res.data) > 0
+
+def wyczysc_event(event):
+    supabase.table("zlot_slots").delete().eq("event", event).execute()
 
 # -----------------------------
-# BUILD GRID
+# BUDOWA TABELI
 # -----------------------------
 def build_table(event, hours, slots):
     data = pobierz(event)
@@ -67,35 +61,6 @@ def build_table(event, hours, slots):
     return df
 
 # -----------------------------
-# VALIDATION (LIVE)
-# -----------------------------
-def validate(df):
-    flat = df.values.flatten()
-
-    seen = set()
-    for v in flat:
-        if v == "":
-            continue
-        if v in seen:
-            st.session_state.duplicate_error = f"❌ Patrol '{v}' występuje więcej niż raz!"
-            return False
-        seen.add(v)
-
-    st.session_state.duplicate_error = None
-    return True
-
-# -----------------------------
-# RENDER GRID STYLE (duplikaty)
-# -----------------------------
-def style_duplicates(df):
-    flat = df.values.flatten()
-    dup = {x for x in flat if x != "" and list(flat).count(x) > 1}
-
-    return df.style.applymap(
-        lambda v: "background-color: #ffcccc" if v in dup else ""
-    )
-
-# -----------------------------
 # PANEL
 # -----------------------------
 def panel(event, hours, slots):
@@ -104,46 +69,55 @@ def panel(event, hours, slots):
 
     df = build_table(event, hours, slots)
 
-    styled_df = style_duplicates(df)
-
     edited = st.data_editor(
-        styled_df,
+        df,
         use_container_width=True,
-        key=f"grid_{event}",
-        on_change=lambda: validate(st.session_state[f"grid_{event}"])
+        num_rows="fixed"
     )
 
-    # zapis stanu do session
-    st.session_state[f"grid_{event}"] = edited
+    st.info("👉 Kliknij komórkę i wpisz numer Patrolu")
 
-    # ERROR UI
-    if st.session_state.duplicate_error:
-        st.error(st.session_state.duplicate_error)
-        st.stop()
+    if st.button("Zapisz zmiany"):
 
-    # SAVE
-    if st.button("💾 Zapisz zmiany"):
+        flat = edited.values.flatten()
 
-        if not validate(edited):
-            st.error("❌ Popraw duplikaty przed zapisem")
-            return
+        # -------------------------
+        # WALIDACJA DUPLIKATÓW
+        # -------------------------
+        seen = set()
+        for val in flat:
+            if val == "":
+                continue
+            if val in seen:
+                st.error("❌ Każdy Patrol może zapisać się na dane zajęcia tylko raz!")
+                return
+            seen.add(val)
 
+        # -------------------------
+        # ZAPIS (SAFE SYNC)
+        # -------------------------
         try:
+            # czyścimy event
+            wyczysc_event(event)
+
+            # zapisujemy od nowa
             for r in hours:
                 for c in slots:
                     val = edited.loc[r, c]
                     if val != "":
                         zapisz(event, r, c, val)
 
-            st.success("✔ Zapisano poprawnie")
+            st.success("✔ Zapisano Patrol!")
             st.rerun()
 
-        except Exception as e:
-            st.error(f"❌ Błąd zapisu: {e}")
+        except Exception:
+            st.error("❌ Nie udało się zapisać. Spróbuj ponownie.")
 
 # -----------------------------
-# UI SWITCH
+# UI
 # -----------------------------
+st.title("📋 Zgłoszenia Zlotowe 68 HRŚ")
+
 zakladka = st.radio(
     "Wybierz wydarzenie",
     ["Świętuchobranie", "Warsztaty z programowania"]
@@ -153,3 +127,4 @@ if zakladka == "Świętuchobranie":
     panel("swietuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
 else:
     panel("warsztaty", PROG_GODZINY, PROG_SLOTY)
+
