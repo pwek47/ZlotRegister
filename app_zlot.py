@@ -4,6 +4,19 @@ import pandas as pd
 st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
 
 # -----------------------------
+# SUCCESS MESSAGE STATE
+# -----------------------------
+if "msg" not in st.session_state:
+    st.session_state.msg = ""
+
+# -----------------------------
+# POKAZANIE WIADOMOŚCI
+# -----------------------------
+if st.session_state.msg:
+    st.success(st.session_state.msg)
+    st.session_state.msg = ""
+
+# -----------------------------
 # DANE
 # -----------------------------
 if "tabela_swietuchobranie" not in st.session_state:
@@ -18,21 +31,10 @@ if "tabela_programowanie" not in st.session_state:
         "", index=godziny, columns=["Slot A", "Slot B"]
     )
 
-# -----------------------------
-# FUNKCJA: czy patrol już istnieje
-# -----------------------------
-def patrol_istnieje(df, patrol):
-    return (df.values == patrol).any()
-
-# -----------------------------
-# EDYTOR TABELI
-# -----------------------------
 def tabela_edytowalna(klucz, tytul):
     st.subheader(tytul)
 
     df = st.session_state[klucz]
-
-    st.info("👉 Kliknij w komórkę i wpisz numer patrolu")
 
     edited = st.data_editor(
         df,
@@ -41,28 +43,23 @@ def tabela_edytowalna(klucz, tytul):
         key=f"editor_{klucz}"
     )
 
-    if st.button("Zapisz się!", key=f"save_{klucz}"):
+    if st.button("Zapisz zmiany", key=f"save_{klucz}"):
 
         flat = edited.values.flatten()
 
-        # -------------------------
-        # 🔥 SPRAWDZENIE DUPLIKATÓW
-        # -------------------------
         seen = set()
         for val in flat:
             if val == "":
                 continue
             if val in seen:
-                st.error(f"❌ Patrol '{val}' został już zapisany!")
+                st.session_state.msg = f"❌ Patrol '{val}' jest już zapisany!"
+                st.rerun()
                 return
             seen.add(val)
 
-        # -------------------------
-        # ZAPIS
-        # -------------------------
         st.session_state[klucz].iloc[:, :] = edited.values
 
-        st.success("✔ Zapisano poprawnie!")
+        st.session_state.msg = "✔ Zapisano poprawnie!"
         st.rerun()
 
 # -----------------------------
