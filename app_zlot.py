@@ -1,60 +1,61 @@
 import streamlit as st
 import pandas as pd
+from supabase import create_client
+
+# -----------------------------
+# SUPABASE CONFIG
+# -----------------------------
+SUPABASE_URL = "https://ogrrodyxbwhsepgaancv.supabase.co"
+SUPABASE_KEY = "sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z"
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Zgłoszenia Zlotowe 68 HRŚ", layout="wide")
 
 # -----------------------------
-# DANE
+# KONFIG TABEL
 # -----------------------------
-if "tabela_swietuchobranie" not in st.session_state:
-    godziny = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
-    st.session_state.tabela_swietuchobranie = pd.DataFrame(
-        "", index=godziny, columns=[f"Slot {i}" for i in range(1, 10)]
-    )
+SWIETUCH_GODZINY = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
+SWIETUCH_SLOTY = [f"Slot {i}" for i in range(1, 10)]
 
-if "tabela_programowanie" not in st.session_state:
-    godziny = ["16:00","17:00","18:00","19:00"]
-    st.session_state.tabela_programowanie = pd.DataFrame(
-        "", index=godziny, columns=["Slot A", "Slot B"]
-    )
+PROG_GODZINY = ["16:00","17:00","18:00","19:00"]
+PROG_SLOTY = ["Slot A", "Slot B"]
 
 # -----------------------------
-# SPRAWDZENIE DUPLIKATÓW
+# FUNKCJE DB
 # -----------------------------
-def patrol_istnieje(df, patrol):
-    return (df == patrol).any().any()
+def pobierz(event):
+    res = supabase.table("zlot_slots").select("*").eq("event", event).execute()
+    return res.data
+
+def zapisz(event, hour, slot, patrol):
+    return supabase.table("zlot_slots").insert({
+        "event": event,
+        "hour": hour,
+        "slot": slot,
+        "patrol": patrol
+    }).execute()
+
+def czy_patrol_istnieje(patrol):
+    res = supabase.table("zlot_slots").select("*").eq("patrol", patrol).execute()
+    return len(res.data) > 0
 
 # -----------------------------
-# FUNKCJA EDYTORA
+# GENEROWANIE TABELI
 # -----------------------------
-def tabela_edytowalna(klucz, tytul):
-    st.subheader(tytul)
+def build_table(event, hours, slots):
+    data = pobierz(event)
 
-    df = st.session_state[klucz]
+    df = pd.DataFrame("", index=hours, columns=slots)
 
-    st.info("👉 Kliknij w komórkę i wpisz numer Patrolu")
+    for row in data:
+        h = row["hour"]
+        s = row["slot"]
+        p = row["patrol"]
+        if h in df.index and s in df.columns:
+            df.loc[h, s] = p
 
-    edited = st.data_editor(
-        df,
-        use_container_width=True,
-        num_rows="fixed",
-        key=f"editor_{klucz}"
-    )
-
-    if st.button("Zapisz zmiany", key=f"save_{klucz}"):
-
-        # sprawdzenie duplikatów patrolu
-        flat = edited.values.flatten()
-        for val in set(flat):
-            if val != "" and list(flat).count(val) > 1:
-                st.error("❌ Twój Patrol został już zapisany na te zajęcia!")
-                return
-
-        # aktualizacja danych (bez crashy Streamlit)
-        st.session_state[klucz].iloc[:, :] = edited.values
-
-        st.success("✔ Zapisano!")
-        st.rerun()
+    return df
 
 # -----------------------------
 # UI
@@ -67,13 +68,47 @@ zakladka = st.radio(
 )
 
 # -----------------------------
-# ŚWIĘTUCHOBRANIE
+# LOGIKA ZAPISU
 # -----------------------------
-if zakladka == "Świętuchobranie":
-    tabela_edytowalna("tabela_swietuchobranie", "Świętuchobranie")
+def panel(event, hours, slots):
+
+    df = build_table(event, hours, slots)
+
+    st.subheader(event)
+    st.dataframe(df, use_container_width=True)
+
+    st.info("👉 Kliknij pole i wpisz numer patrolu")
+
+    # wybór komórki (klik-UX)
+    komorki = [(h, s) for h in hours for s in slots]
+
+    wybor = st.selectbox("Wybierz pole", komorki, format_func=lambda x: f"{x[0]} - {x[1]}")
+    hour, slot = wybor
+
+    st.write(f"Wybrano: {hour} / {slot}")
+
+    patrol = st.text_input("Numer patrolu")
+
+    if st.button("Zapisz"):
+        if patrol == "":
+            st.error("Podaj numer patrolu")
+            return
+
+        if czy_patrol_istnieje(patrol):
+            st.error("Ten patrol już istnieje w systemie!")
+            return
+
+        try:
+            zapisz(event, hour, slot, patrol)
+            st.success("Zapisano!")
+            st.rerun()
+        except Exception as e:
+            st.error("Slot zajęty lub błąd zapisu")
 
 # -----------------------------
-# WARSZTATY
+# EVENTS
 # -----------------------------
+if zakladka == "Świętuchobranie":
+    panel("swietuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
 else:
-    tabela_edytowalna("tabela_programowanie", "Warsztaty z programowania")
+    panel("warsztaty", PROG_GODZINY, PROG_SLOTY)
