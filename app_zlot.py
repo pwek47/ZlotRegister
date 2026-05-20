@@ -125,26 +125,32 @@ def panel(event, hours, slots):
 
     df = build_table(event, hours, slots)
 
-    edited_df = st.data_editor(
+    editor_key = f"editor_{event}"
+
+    # data_editor zapisuje do session_state automatycznie
+    st.data_editor(
         df,
         use_container_width=True,
         num_rows="fixed",
-        key=f"editor_{event}"
+        key=editor_key
     )
 
-    if st.button("💾 Zapisz się na zajęcia!", key=f"save_{event}"):
+    if st.button("💾 Zapisz", key=f"save_{event}"):
+
+        # 🔥 KLUCZOWE: bierzemy NAJNOWSZY stan z session_state
+        edited_df = st.session_state[editor_key]
 
         changes = zapisz_zmiany(event, edited_df)
 
-        # 🔥 KLUCZOWE: zawsze bierz świeże dane z DB
+        # 🔥 zawsze odświeżamy z DB
         fresh_df = build_table(event, hours, slots)
+        st.session_state[editor_key] = fresh_df
 
         if changes > 0:
-            st.success(f"Zapisano {changes} na zajęcia!")
+            st.success(f"Zapisano na zajęcia!")
         else:
-            st.warning("Brak zapisanych danych do zapisu.")
+            st.warning("Brak zmian lub błędy (stan odświeżony)")
 
-        # 🔥 reset UI = usuwa „stary input”
         st.rerun()
 
 
