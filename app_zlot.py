@@ -36,12 +36,13 @@ def zapisz(event, hour, slot, patrol):
         "patrol": patrol
     }).execute()
 
-# patrol może istnieć tylko raz
-def czy_patrol_istnieje(patrol):
+# patrol może zapisać się tylko raz w danym evencie
+def czy_patrol_istnieje(event, patrol):
     res = (
         supabase
         .table("zlot_slots")
         .select("*")
+        .eq("event", event)
         .eq("patrol", patrol)
         .execute()
     )
@@ -89,7 +90,7 @@ zakladka = st.radio(
 )
 
 # -----------------------------
-# LOGIKA ZAPISU
+# PANEL
 # -----------------------------
 def panel(event, hours, slots):
 
@@ -113,19 +114,20 @@ def panel(event, hours, slots):
     st.write(f"Wybrano: {hour} / {slot}")
 
     patrol = st.text_input("Numer patrolu")
+    patrol = patrol.strip().upper()
 
     if st.button("Zapisz"):
 
-        if patrol.strip() == "":
+        if patrol == "":
             st.error("Podaj numer patrolu")
             return
 
-        # blokada duplikatu patrolu
-        if czy_patrol_istnieje(patrol):
-            st.error("Ten patrol jest już zapisany!")
+        # blokada duplikatu patrolu w danym evencie
+        if czy_patrol_istnieje(event, patrol):
+            st.error("Ten patrol jest już zapisany na to wydarzenie!")
             return
 
-        # blokada nadpisania slotu
+        # blokada zajętego slotu
         if czy_slot_zajety(event, hour, slot):
             st.error("Ten slot jest już zajęty!")
             return
