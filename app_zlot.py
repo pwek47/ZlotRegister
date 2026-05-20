@@ -7,16 +7,15 @@ from supabase import create_client
 # -----------------------------
 SUPABASE_URL = "https://ogrrodyxbwhsepgaancv.supabase.co"
 SUPABASE_KEY = "sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z"
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(
-    page_title="Zgłoszenia Zlotowe 68 HRŚ",
+    page_title="Zgłoszenia na zajęcia Zlotowe 68 HRŚ",
     layout="wide"
 )
 
 # -----------------------------
-# KONFIG TABEL
+# KONFIG
 # -----------------------------
 SWIETUCH_GODZINY = ["16:00","16:30","17:00","17:30","18:00","18:30","19:00"]
 SWIETUCH_SLOTY = [f"Slot {i}" for i in range(1, 10)]
@@ -25,42 +24,36 @@ PROG_GODZINY = ["16:00","17:00","18:00","19:00"]
 PROG_SLOTY = ["Slot A", "Slot B"]
 
 # -----------------------------
-# FUNKCJE DB
+# DB
 # -----------------------------
 def pobierz(event):
+    res = supabase.table("zlot_slots").select("*").eq("event", event).execute()
+    return res.data
+
+
+def zapisz(event, hour, slot, patrol):
+    return supabase.table("zlot_slots").insert({
+        "event": event,
+        "hour": hour,
+        "slot": slot,
+        "patrol": patrol
+    }).execute()
+
+
+def patrol_w_event(event, patrol):
+    """sprawdza czy patrol już jest w DANYM evencie"""
     res = (
         supabase
         .table("zlot_slots")
         .select("*")
         .eq("event", event)
-        .execute()
-    )
-    return res.data
-
-def zapisz(event, hour, slot, patrol):
-    return (
-        supabase
-        .table("zlot_slots")
-        .insert({
-            "event": event,
-            "hour": hour,
-            "slot": slot,
-            "patrol": patrol
-        })
-        .execute()
-    )
-
-def czy_patrol_istnieje(patrol):
-    res = (
-        supabase
-        .table("zlot_slots")
-        .select("*")
         .eq("patrol", patrol)
         .execute()
     )
     return len(res.data) > 0
 
-def czy_slot_zajety(event, hour, slot):
+
+def slot_zajety(event, hour, slot):
     res = (
         supabase
         .table("zlot_slots")
@@ -73,13 +66,12 @@ def czy_slot_zajety(event, hour, slot):
     return len(res.data) > 0
 
 # -----------------------------
-# GENEROWANIE TABELI
+# TABLE BUILD
 # -----------------------------
 def build_table(event, hours, slots):
-
     data = pobierz(event)
 
-    df = pd.DataFrame("", index=hours, columns=slots)
+    df = pd.DataFrame(index=hours, columns=slots).fillna("")
 
     for row in data:
         h = row["hour"]
@@ -92,41 +84,50 @@ def build_table(event, hours, slots):
     return df
 
 # -----------------------------
-# ZAPIS ZMIAN
+# SAVE
 # -----------------------------
 def zapisz_zmiany(event, original_df, edited_df):
 
-    for hour in edited_df.index:
+    changed = False
 
+    for hour in edited_df.index:
         for slot in edited_df.columns:
 
-            old_value = str(original_df.loc[hour, slot]).strip()
-            new_value = str(edited_df.loc[hour, slot]).strip()
+            old = original_df.loc[hour, slot]
+            new = edited_df.loc[hour, slot]
 
-            # nic nie zmieniono
-            if old_value == new_value:
+            if pd.isna(old): old = ""
+            if pd.isna(new): new = ""
+
+            old = str(old).strip()
+            new = str(new).strip()
+
+            if old == new:
                 continue
 
-            # nie można nadpisywać istniejących slotów
-            if old_value != "":
-                st.error(f"{hour} / {slot} jest już zajęty")
+            # slot zajęty -> nie nadpisuj
+            if old != "":
+                st.error(f"Slot {hour} / {slot} jest zajęty")
                 continue
 
-            # puste pole
-            if new_value == "":
+            if new == "":
                 continue
 
-            # patrol już istnieje
-            if czy_patrol_istnieje(new_value):
-                st.error(f"Patrol {new_value} już istnieje")
+            # patrol już w tym evencie
+            if patrol_w_event(event, new):
+                st.error(f"Patrol {new} już jest w tym wydarzeniu")
                 continue
 
             try:
-                zapisz(event, hour, slot, new_value)
-                st.success(f"Zapisano patrol {new_value}")
+                zapisz(event, hour, slot, new)
+                changed = True
 
             except Exception as e:
                 st.error(f"Błąd: {e}")
+
+    if changed:
+        st.success("Zapisano zmiany")
+        st.rerun()
 
 # -----------------------------
 # UI
@@ -138,9 +139,6 @@ zakladka = st.radio(
     ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
-# -----------------------------
-# PANEL
-# -----------------------------
 def panel(event, hours, slots):
 
     st.subheader(event)
@@ -151,22 +149,19 @@ def panel(event, hours, slots):
         original_df,
         use_container_width=True,
         num_rows="fixed",
-        disabled=False
+        key=f"editor_{event}"
     )
 
-    st.info("👉 Kliknij pustą komórkę i wpisz numer patrolu")
+    st.info("Kliknij komórkę i wpisz patrol")
 
-    if st.button("Zapisz zmiany"):
+    if st.button("Zapisz", key=f"save_{event}"):
 
         zapisz_zmiany(event, original_df, edited_df)
-
-        st.rerun()
 
 # -----------------------------
 # EVENTS
 # -----------------------------
 if zakladka == "Świętuchobranie":
     panel("Świętuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
-
 else:
     panel("Warsztaty z programowania", PROG_GODZINY, PROG_SLOTY)
