@@ -52,7 +52,7 @@ def patrol_w_event(event, patrol):
 
 
 # -----------------------------
-# TABLE BUILD
+# TABLE
 # -----------------------------
 def build_table(event, hours, slots):
     data = pobierz(event)
@@ -61,31 +61,27 @@ def build_table(event, hours, slots):
     df[:] = ""
 
     for row in data:
-        h = row["hour"]
-        s = row["slot"]
-        p = row["patrol"]
-
-        if h in df.index and s in df.columns:
-            df.loc[h, s] = p
+        if row["hour"] in df.index and row["slot"] in df.columns:
+            df.loc[row["hour"], row["slot"]] = row["patrol"]
 
     return df
 
 
 # -----------------------------
-# SAVE LOGIC (FIXED)
+# SAVE
 # -----------------------------
-def zapisz_zmiany(event, edited_df):
+def zapisz_zmiany(event, df):
 
     changes = 0
 
-    for hour in edited_df.index:
-        for slot in edited_df.columns:
+    for hour in df.index:
+        for slot in df.columns:
 
-            new = str(edited_df.loc[hour, slot]).strip()
+            new = str(df.loc[hour, slot]).strip()
             if new == "" or new == "nan":
                 continue
 
-            # sprawdź czy już istnieje w DB (czy slot zajęty)
+            # czy slot już istnieje
             existing = (
                 supabase.table("zlot_slots")
                 .select("*")
@@ -96,28 +92,65 @@ def zapisz_zmiany(event, edited_df):
             )
 
             if existing.data:
-                # jeśli to ten sam patrol → pomijamy
-                if existing.data[0]["patrol"] == new:
-                    continue
-
-                st.error(f"Slot {hour} / {slot} jest już zajęty")
+                if existing.data[0]["patrol"] != new:
+                    st.error(f"Slot {hour}/{slot} jest zajęty")
                 continue
 
             if patrol_w_event(event, new):
-                st.error(f"Patrol {new} już jest w tym wydarzeniu")
+                st.error(f"Patrol {new} już istnieje w evencie")
                 continue
 
-            try:
-                zapisz(event, hour, slot, new)
-                changes += 1
-            except Exception as e:
-                st.error(f"Błąd zapisu: {e}")
+            zapisz(event, hour, slot, new)
+            changes += 1
 
     return changes
 
 
 # -----------------------------
-# UI
+# UI STATE INIT
+# -----------------------------
+def init_state(event, hours, slots):
+    key = f"df_{event}"
+
+    if key not in st.session_state:
+        st.session_state[key] = build_table(event, hours, slots)
+
+
+# -----------------------------
+# PANEL
+# -----------------------------
+def panel(event, hours, slots):
+
+    st.subheader(event)
+
+    init_state(event, hours, slots)
+    key = f"df_{event}"
+
+    # data editor zapisuje bezpośrednio do session_state
+    st.session_state[key] = st.data_editor(
+        st.session_state[key],
+        use_container_width=True,
+        num_rows="fixed",
+        key=f"editor_{event}"
+    )
+
+    if st.button("💾 Zapisz", key=f"save_{event}"):
+
+        changes = zapisz_zmiany(event, st.session_state[key])
+
+        if changes > 0:
+            st.success(f"Zapisano {changes} zmian")
+
+            # reload danych z DB (ważne!)
+            st.session_state[key] = build_table(event, hours, slots)
+
+            st.rerun()
+        else:
+            st.info("Brak zmian do zapisania")
+
+
+# -----------------------------
+# APP
 # -----------------------------
 st.title("📋 Zgłoszenia Zlotowe 68 HRŚ")
 
@@ -126,41 +159,6 @@ zakladka = st.radio(
     ["Świętuchobranie", "Warsztaty z programowania"]
 )
 
-
-def panel(event, hours, slots):
-
-    st.subheader(event)
-
-    # zawsze świeże dane
-    original_df = build_table(event, hours, slots)
-
-    with st.form(key=f"form_{event}"):
-
-        edited_df = st.data_editor(
-            original_df,
-            use_container_width=True,
-            num_rows="fixed",
-            key=f"editor_{event}"
-        )
-
-        submitted = st.form_submit_button("💾 Zapisz")
-
-        if submitted:
-
-            changes = zapisz_zmiany(event, edited_df)
-
-            if changes > 0:
-                st.success(f"Zapisano {changes} zmian")
-
-                # ważne: natychmiastowe odświeżenie widoku
-                st.rerun()
-            else:
-                st.info("Brak zmian do zapisania")
-
-
-# -----------------------------
-# EVENTS
-# -----------------------------
 if zakladka == "Świętuchobranie":
     panel("Świętuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
 else:
