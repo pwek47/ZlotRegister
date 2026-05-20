@@ -142,6 +142,6 @@ def panel(event, hours, slots):
 # EVENTS
 # -----------------------------
 if zakladka == "Świętuchobranie":
-    panel("swietuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
+    panel("Świętuchobranie", SWIETUCH_GODZINY, SWIETUCH_SLOTY)
 else:
-    panel("warsztaty", PROG_GODZINY, PROG_SLOTY)
+    panel("Warsztaty z programowania", PROG_GODZINY, PROG_SLOTY)
