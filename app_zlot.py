@@ -93,11 +93,11 @@ def zapisz_zmiany(event, df):
 
             if existing.data:
                 if existing.data[0]["patrol"] != new:
-                    st.error(f"Slot {hour}/{slot} jest zajęty")
+                    st.error(f"Slot {hour}/{slot} jest już zajęty!")
                 continue
 
             if patrol_w_event(event, new):
-                st.error(f"Patrol {new} już istnieje w evencie")
+                st.error(f"Patrol {new} został już zapisany na te zajęcia!")
                 continue
 
             zapisz(event, hour, slot, new)
@@ -126,7 +126,6 @@ def panel(event, hours, slots):
     init_state(event, hours, slots)
     key = f"df_{event}"
 
-    # data editor zapisuje bezpośrednio do session_state
     st.session_state[key] = st.data_editor(
         st.session_state[key],
         use_container_width=True,
@@ -134,25 +133,26 @@ def panel(event, hours, slots):
         key=f"editor_{event}"
     )
 
-    if st.button("💾 Zapisz", key=f"save_{event}"):
+    if st.button("💾 Zapisz się na zajęcia!", key=f"save_{event}"):
 
         changes = zapisz_zmiany(event, st.session_state[key])
 
+        # 🔥 ZAWSZE odświeżamy dane z bazy (sukces i błąd)
+        fresh_df = build_table(event, hours, slots)
+        st.session_state[key] = fresh_df
+
         if changes > 0:
             st.success(f"Zapisano {changes} zmian")
-
-            # reload danych z DB (ważne!)
-            st.session_state[key] = build_table(event, hours, slots)
-
-            st.rerun()
         else:
-            st.info("Brak zmian do zapisania")
+            st.info("Brak zmian do zapisania.")
+
+        st.rerun()
 
 
 # -----------------------------
 # APP
 # -----------------------------
-st.title("📋 Zgłoszenia Zlotowe 68 HRŚ")
+st.title("📋 Zgłoszenia na zajęcia Zlotowe 68 HRŚ")
 
 zakladka = st.radio(
     "Wybierz wydarzenie",
