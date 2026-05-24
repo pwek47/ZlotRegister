@@ -122,7 +122,7 @@ def build_table(event, hours, slots):
 # -----------------------------
 # UI
 # -----------------------------
-st.title("📋 Zgłoszenia na grę Zlotową 68 HRŚ")
+st.title("📋 Zgłoszenia na grę Świętuchobranie 68 HRŚ")
 
 
 def panel(event, hours, slots):
