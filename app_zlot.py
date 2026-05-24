@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # -----------------------------
-# KONFIG TABEL
+# KONFIG TABELI
 # -----------------------------
 SWIETUCH_GODZINY = [
     "16:00",
@@ -32,23 +32,12 @@ SWIETUCH_SLOTY = [
     f"Slot {i}" for i in range(1, 10)
 ]
 
-PROG_GODZINY = [
-    "16:00",
-    "17:00",
-    "18:00",
-    "19:00"
-]
-
-PROG_SLOTY = [
-    "Slot A",
-    "Slot B"
-]
+EVENT_NAME = "Świętuchobranie"
 
 # -----------------------------
 # FUNKCJE DB
 # -----------------------------
 def pobierz(event):
-
     res = (
         supabase
         .table("zlot_slots")
@@ -61,7 +50,6 @@ def pobierz(event):
 
 
 def zapisz(event, hour, slot, patrol):
-
     return (
         supabase
         .table("zlot_slots")
@@ -134,122 +122,90 @@ def build_table(event, hours, slots):
 # -----------------------------
 # UI
 # -----------------------------
-st.title("📋 Zgłoszenia na zajęcia Zlotowe 68 HRŚ")
+st.title("📋 Zgłoszenia na grę Zlotową 68 HRŚ")
 
-zakladka = st.radio(
-    "Wybierz wydarzenie",
-    [
-        "Świętuchobranie",
-        "Warsztaty z programowania"
-    ]
-)
 
-# -----------------------------
-# PANEL
-# -----------------------------
 def panel(event, hours, slots):
 
     df = build_table(event, hours, slots)
 
     st.subheader(event)
 
-    st.info(
-        "👉 Kliknij pole w tabeli"
-    )
-
-    st.data_editor(
+    st.dataframe(
         df,
-        use_container_width=True,
-        disabled=True,
-        key="slot_table"
+        use_container_width=True
     )
 
-    hour = None
-    slot = None
+    st.info(
+        "👉 Wybierz wolny slot i wpisz numer patrolu"
+    )
 
-    # odczyt klikniętej komórki
-    selection = st.session_state.get("slot_table")
+    komorki = [
+        (h, s)
+        for h in hours
+        for s in slots
+    ]
 
-    if selection and "selection" in selection:
+    wybor = st.selectbox(
+        "Wybierz pole",
+        komorki,
+        format_func=lambda x: f"{x[0]} - {x[1]}"
+    )
 
-        rows = selection["selection"].get("rows", [])
-        cols = selection["selection"].get("columns", [])
+    hour, slot = wybor
 
-        if rows and cols:
+    st.write(f"Wybrano: {hour} / {slot}")
 
-            row_idx = rows[0]
-            col_idx = cols[0]
+    patrol = st.text_input(
+        "Numer patrolu"
+    )
 
-            hour = hours[row_idx]
-            slot = slots[col_idx]
+    patrol = patrol.strip().upper()
 
-            st.success(
-                f"Wybrano: {hour} / {slot}"
+    if st.button("Zapisz"):
+
+        if patrol == "":
+            st.error("Podaj numer patrolu")
+            return
+
+        # blokada duplikatu patrolu
+        if czy_patrol_istnieje(event, patrol):
+            st.error(
+                "Ten patrol jest już zapisany!"
+            )
+            return
+
+        # blokada zajętego slotu
+        if czy_slot_zajety(event, hour, slot):
+            st.error(
+                "Ten slot jest już zajęty!"
+            )
+            return
+
+        try:
+
+            zapisz(
+                event,
+                hour,
+                slot,
+                patrol
             )
 
-    # formularz pojawia się dopiero po kliknięciu
-    if hour and slot:
+            st.success(
+                "Zapisano na grę!"
+            )
 
-        patrol = st.text_input(
-            "Numer patrolu"
-        )
+            st.rerun()
 
-        patrol = patrol.strip().upper()
-
-        if st.button("Zapisz"):
-
-            if patrol == "":
-                st.error("Podaj numer patrolu")
-                return
-
-            # blokada duplikatu patrolu
-            if czy_patrol_istnieje(event, patrol):
-                st.error(
-                    "Ten patrol jest już zapisany na to wydarzenie!"
-                )
-                return
-
-            # blokada zajętego slotu
-            if czy_slot_zajety(event, hour, slot):
-                st.error(
-                    "Ten slot jest już zajęty!"
-                )
-                return
-
-            try:
-
-                zapisz(
-                    event,
-                    hour,
-                    slot,
-                    patrol
-                )
-
-                st.success(
-                    "Zapisano na zajęcia!"
-                )
-
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"Błąd zapisu: {e}")
+        except Exception as e:
+            st.error(f"Błąd zapisu: {e}")
 
 
 # -----------------------------
-# EVENTS
+# START
 # -----------------------------
-if zakladka == "Świętuchobranie":
-
-    panel(
-        "Świętuchobranie",
-        SWIETUCH_GODZINY,
-        SWIETUCH_SLOTY
-    )
-
-else:
-
-    panel(
-        "Warsztaty z programowania",
-        PROG_GODZINY,
-        PROG_SLOTY
-    )
+panel(
+    EVENT_NAME,
+    SWIETUCH_GODZINY,
+    SWIETUCH_SLOTY
+)
