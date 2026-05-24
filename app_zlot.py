@@ -11,7 +11,7 @@ SUPABASE_KEY = "sb_publishable_5BjK7_IMz5dlrG5-WZ_5LA_4xpEIk7z"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(
-    page_title="Zgłoszenia Zlotowe 68 HRŚ",
+    page_title="Zgłoszenia na grę Świętuchobranie na Zlocie 68 HRŚ",
     layout="wide"
 )
 
@@ -29,7 +29,7 @@ SWIETUCH_GODZINY = [
 ]
 
 SWIETUCH_SLOTY = [
-    f"Slot {i}" for i in range(1, 10)
+    f"Patrol {i}" for i in range(1, 10)
 ]
 
 EVENT_NAME = "Świętuchobranie"
