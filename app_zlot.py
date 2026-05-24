@@ -35,9 +35,16 @@ SWIETUCH_SLOTY = [
 EVENT_NAME = "Świętuchobranie"
 
 # -----------------------------
+# SESSION STATE
+# -----------------------------
+if "selected_hour" not in st.session_state:
+    st.session_state.selected_hour = SWIETUCH_GODZINY[0]
+
+# -----------------------------
 # FUNKCJE DB
 # -----------------------------
 def pobierz(event):
+
     res = (
         supabase
         .table("zlot_slots")
@@ -50,6 +57,7 @@ def pobierz(event):
 
 
 def zapisz(event, hour, slot, patrol):
+
     return (
         supabase
         .table("zlot_slots")
@@ -63,7 +71,6 @@ def zapisz(event, hour, slot, patrol):
     )
 
 
-# patrol może zapisać się tylko raz
 def czy_patrol_istnieje(event, patrol):
 
     res = (
@@ -78,7 +85,6 @@ def czy_patrol_istnieje(event, patrol):
     return len(res.data) > 0
 
 
-# slot może być zajęty tylko raz
 def czy_slot_zajety(event, hour, slot):
 
     res = (
@@ -131,30 +137,45 @@ def panel(event, hours, slots):
 
     st.subheader(event)
 
+    # -----------------------------
+    # WYBÓR GODZINY
+    # -----------------------------
+    wybrana_godzina = st.selectbox(
+        "Wybierz godzinę",
+        hours,
+        index=hours.index(st.session_state.selected_hour)
+    )
+
+    st.session_state.selected_hour = wybrana_godzina
+
+    # -----------------------------
+    # TABELA TYLKO DLA GODZINY
+    # -----------------------------
+    st.write(f"### Sloty dla godziny {wybrana_godzina}")
+
+    godzina_df = pd.DataFrame(
+        [df.loc[wybrana_godzina]],
+        index=[wybrana_godzina]
+    )
+
     st.dataframe(
-        df,
+        godzina_df,
         use_container_width=True
     )
 
     st.info(
-        "👉 Wybierz wolny slot i wpisz numer patrolu"
+        "👉 Wybierz patrol dla tej godziny"
     )
 
-    komorki = [
-        (h, s)
-        for h in hours
-        for s in slots
-    ]
-
-    wybor = st.selectbox(
-        "Wybierz pole",
-        komorki,
-        format_func=lambda x: f"{x[0]} - {x[1]}"
+    # -----------------------------
+    # WYBÓR SLOTU
+    # -----------------------------
+    slot = st.selectbox(
+        "Wybierz patrol",
+        slots
     )
 
-    hour, slot = wybor
-
-    st.write(f"Wybrano: {hour} / {slot}")
+    st.write(f"Wybrano: {wybrana_godzina} / {slot}")
 
     patrol = st.text_input(
         "Numer patrolu"
@@ -162,21 +183,22 @@ def panel(event, hours, slots):
 
     patrol = patrol.strip().upper()
 
+    # -----------------------------
+    # ZAPIS
+    # -----------------------------
     if st.button("Zapisz"):
 
         if patrol == "":
             st.error("Podaj numer patrolu")
             return
 
-        # blokada duplikatu patrolu
         if czy_patrol_istnieje(event, patrol):
             st.error(
                 "Ten patrol jest już zapisany!"
             )
             return
 
-        # blokada zajętego slotu
-        if czy_slot_zajety(event, hour, slot):
+        if czy_slot_zajety(event, wybrana_godzina, slot):
             st.error(
                 "Ten slot jest już zajęty!"
             )
@@ -186,7 +208,7 @@ def panel(event, hours, slots):
 
             zapisz(
                 event,
-                hour,
+                wybrana_godzina,
                 slot,
                 patrol
             )
